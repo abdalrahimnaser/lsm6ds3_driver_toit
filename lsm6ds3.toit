@@ -106,8 +106,19 @@ class LSM6DS3:
   static GRAVITY_CONSTANT ::= 9.80665
 
   // The currently selected range.
-  range_/int := 0
+  range_acc_/int := 0
   range_gyro_/int := 0
+
+  // The currently selected ODR.
+  dataRate_acc_/int := 0
+  dataRate_gyro_/int := 0
+
+
+  // Gyroscope calibration values
+  gyro_offset_x/float := 0.0
+  gyro_offset_y/float := 0.0
+  gyro_offset_z/float := 0.0
+
 
   // device registers
   reg_/serial.Registers ::= ?
@@ -119,8 +130,8 @@ class LSM6DS3:
     if (reg_.read_u8 WHO_AM_I) != CHIP_ID: throw "INVALID_CHIP/NONCONNECTED"
 
   enable -> none
-      --rate_acc/int = ODR_XL_104Hz
-      --rate_gyro/int = ODR_G_104Hz
+      --dataRate_acc/int = ODR_XL_104Hz
+      --dataRate_gyro/int = ODR_G_104Hz
       --range_acc/int = FS_XL_2G
       --range_gyro/int = FS_G_125DPS
       --enable_sig_motion/bool = false
@@ -128,9 +139,11 @@ class LSM6DS3:
     
     ctrl6 := XL_HM_MODE | FTYPE_G
     ctrl7 := G_HM_MODE
-    ctrl1_xl := rate_acc | range_acc | LPF1_BW_SEL
-    ctrl2_g := rate_gyro | range_gyro | LPF1_SEL_G
-    
+    ctrl1_xl := dataRate_acc | range_acc | LPF1_BW_SEL
+    ctrl2_g := dataRate_gyro | range_gyro
+
+
+    reg_.write_u8 CTRL4_C LPF1_SEL_G
     reg_.write_u8 CTRL6_C ctrl6
     reg_.write_u8 CTRL7_G ctrl7
     reg_.write_u8 CTRL1_XL ctrl1_xl
@@ -145,9 +158,11 @@ class LSM6DS3:
     // Route free-fall interrupt to INT1
     reg_.write_u8 MD1_CFG 0x10
 
-    range_ = range_acc
+    range_acc_ = range_acc
     range_gyro_ = range_gyro
 
+    dataRate_acc_ = dataRate_acc
+    dataRate_gyro_ = dataRate_gyro
 
   /**
   Reads the acceleration on the x, y and z axis.
@@ -165,13 +180,13 @@ class LSM6DS3:
 
     ACCEL_SENSITIVITIES ::= [0.061, 0.122, 0.244, 0.488]
     sensitivity := 0
-    if range_==FS_XL_2G:
+    if range_acc_==FS_XL_2G:
       sensitivity=ACCEL_SENSITIVITIES[0]
-    else if range_==FS_XL_4G:
+    else if range_acc_==FS_XL_4G:
       sensitivity=ACCEL_SENSITIVITIES[1]
-    else if range_==FS_XL_8G:
+    else if range_acc_==FS_XL_8G:
       sensitivity=ACCEL_SENSITIVITIES[2]
-    else if range_==FS_XL_16G:
+    else if range_acc_==FS_XL_16G:
       sensitivity=ACCEL_SENSITIVITIES[3]
 
     // convert to m/s^2
@@ -187,7 +202,7 @@ class LSM6DS3:
   Reads the gyroscope on the x, y and z axis.
   The returned values are in dps.
   */
-  read_gyro -> math.Point3f:
+  read_gyro_raw -> math.Point3f:
     x := reg_.read_i16_le (OUTX_L_G)
     y := reg_.read_i16_le (OUTY_L_G)
     z := reg_.read_i16_le (OUTZ_L_G)
@@ -216,11 +231,20 @@ class LSM6DS3:
     factor := sensitivity / 1000.0
 
     return math.Point3f
-        x * factor
+        x * factor 
         y * factor 
         z * factor
 
 
+  read_gyro -> math.Point3f:
+    offset := math.Point3f gyro_offset_x gyro_offset_y gyro_offset_z
+    return read_gyro_raw - offset
+
+  calibrate_gyro -> none:
+    gyro_offset_x  = read_gyro_raw.x
+    gyro_offset_y  = read_gyro_raw.y
+    gyro_offset_z  = read_gyro_raw.z
+     
   /**
   Reads the temperature.
   The returned value is in degrees Celsius.
@@ -229,7 +253,6 @@ class LSM6DS3:
     temp := (reg_.read_i16_le OUT_TEMP_L) / 256.0 + 25.0
     return temp
 
-  
   /**
   Sets the threshold for the sig_motion detection.
   The threshold is a value between 0 and 255.
@@ -251,7 +274,7 @@ class LSM6DS3:
     reg_.write_u8 FREE_FALL ((duration << 3) | threshold)
     reg_.write_u8 WAKE_UP_DUR (((duration & 0x20) << 2) | (reg_.read_u8 WAKE_UP_DUR)) // wake_up_dur[7]=duration[5]
 
-  
+
   accelerationAvailable -> bool:
     return ((reg_.read_u8 STATUS_REG) & 0x01) == 0x01
 

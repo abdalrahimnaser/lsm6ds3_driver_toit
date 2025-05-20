@@ -18,6 +18,7 @@ main:
   sensor.enable --enable_free_fall=true
   sensor.set_free_fall_config 0x01 0x00
 
+  sensor.calibrate_gyro
 
   while 1:
     if sensor.accelerationAvailable:
@@ -38,5 +39,5 @@ main:
     if sensor.freeFallDetected:
       print_ "Free Fall Detected!"
 
-    sleep --ms=100
+    sleep --ms=1000
   
