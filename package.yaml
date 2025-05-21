@@ -1,0 +1,4 @@
+name: lsm6ds3
+description: TOIT driver for the LSM6DS3 sensor
+environment:
+  sdk: ^2.0.0-alpha.180

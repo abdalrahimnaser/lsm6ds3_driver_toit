@@ -1,6 +1,6 @@
 import i2c
 import gpio
-import .lsm6ds3 as lsm6ds3
+import lsm6ds3
 
 
 import gpio
@@ -8,15 +8,15 @@ import gpio
 
 main:
   bus := i2c.Bus
-    --sda=gpio.Pin 0
-    --scl=gpio.Pin 1
+    --sda=gpio.Pin 6
+    --scl=gpio.Pin 7
 
   device := bus.device lsm6ds3.I2C_ADDRESS
   
   sensor := lsm6ds3.LSM6DS3 device
 
   sensor.enable --enable_free_fall=true
-  sensor.set_free_fall_config 0x01 0x00
+  sensor.set_freeFall_config 0x01 0x00
 
   sensor.calibrate_gyro
 
