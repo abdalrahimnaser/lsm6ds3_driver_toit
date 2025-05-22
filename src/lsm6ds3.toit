@@ -419,12 +419,18 @@ class LSM6DS3:
       --fifo_thresholdReached/bool=false
       --fifo_full/bool=false: 
     int1_ctrl := 0x00
-    int1_ctrl |= (sigMotion << 1)
-    int1_ctrl |= (fifo_full << 3)
-    int1_ctrl |= (fifo_thresholdReached << 4)
+    md1_cfg := 0x00
+    if sigMotion:
+      int1_ctrl |= 0b01000000
+    if fifo_full:
+      int1_ctrl |= 0b00100000
+    if fifo_thresholdReached:
+      int1_ctrl |= 0b00001000
+    if freeFall:
+      md1_cfg |= 0b00010000
 
     reg_.write_u8 INT1_CTRL (int1_ctrl)
-    reg_.write_u8 MD1_CFG (freeFall << 4)
+    reg_.write_u8 MD1_CFG (md1_cfg)
 
   int2_config -> none
       --sigMotion/bool=false
@@ -432,9 +438,15 @@ class LSM6DS3:
       --fifo_thresholdReached/bool=false
       --fifo_full/bool=false: 
     int2_ctrl := 0x00
-    int2_ctrl |= (sigMotion << 1)
-    int2_ctrl |= (fifo_full << 3)
-    int2_ctrl |= (fifo_thresholdReached << 4)
+    md2_cfg := 0x00
+    if sigMotion:
+      int2_ctrl |= 0b01000000
+    if fifo_full:
+      int2_ctrl |= 0b00100000
+    if fifo_thresholdReached:
+      int2_ctrl |= 0b00001000
+    if freeFall:
+      md2_cfg |= 0b00010000
 
     reg_.write_u8 INT2_CTRL (int2_ctrl)
-    reg_.write_u8 MD2_CFG (freeFall << 4)
+    reg_.write_u8 MD2_CFG (md2_cfg)

@@ -18,7 +18,8 @@ main:
   sensor.enable --enable_free_fall=true
   sensor.set_freeFall_config 0x01 0x00
 
-  sensor.calibrate_gyro
+  for i:=0;i<5;i++:
+    sensor.calibrate_gyro
 
   while 1:
     if sensor.accelerationAvailable:
