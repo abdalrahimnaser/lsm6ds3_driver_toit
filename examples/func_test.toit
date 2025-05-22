@@ -8,8 +8,8 @@ import gpio
 
 main:
   bus := i2c.Bus
-    --sda=gpio.Pin 6
-    --scl=gpio.Pin 7
+    --sda=gpio.Pin 0
+    --scl=gpio.Pin 1
 
   device := bus.device lsm6ds3.I2C_ADDRESS
   

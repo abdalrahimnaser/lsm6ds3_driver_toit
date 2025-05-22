@@ -102,7 +102,47 @@ FREE_FALL ::= 0x5D
 TAP_CFG ::= 0x58
 CHIP_ID          ::= 0x6A
 MD1_CFG ::= 0x5E
+MD2_CFG ::= 0x5F
 GRAVITY_CONSTANT ::= 9.80665
+
+
+// FIFO registers
+FIFO_CTRL1       ::= 0x06
+FIFO_CTRL2       ::= 0x07
+FIFO_CTRL3       ::= 0x08
+FIFO_CTRL4       ::= 0x09
+FIFO_CTRL5       ::= 0x0A
+FIFO_STATUS1     ::= 0x3A
+FIFO_STATUS2     ::= 0x3B
+FIFO_STATUS3     ::= 0x3C
+FIFO_STATUS4     ::= 0x3D
+FIFO_DATA_OUT_L  ::= 0x3E
+FIFO_DATA_OUT_H  ::= 0x3F
+
+// FIFO modes
+FIFO_MODE_BYPASS    ::= 0x00
+FIFO_MODE_FIFO      ::= 0x01
+FIFO_MODE_STREAM    ::= 0x06
+FIFO_MODE_STF       ::= 0x07  // Stream-to-FIFO
+
+
+// FIFO ODR settings
+FIFO_ODR_12_5Hz    ::= 0x01
+FIFO_ODR_26Hz       ::= 0x02
+FIFO_ODR_52Hz       ::= 0x03
+FIFO_ODR_104Hz      ::= 0x04  
+FIFO_ODR_208Hz      ::= 0x05
+FIFO_ODR_416Hz      ::= 0x06
+FIFO_ODR_833Hz      ::= 0x07
+FIFO_ODR_1660Hz     ::= 0x08
+FIFO_ODR_3330Hz     ::= 0x09
+FIFO_ODR_6660Hz     ::= 0x0A
+
+
+
+// Interrupt configuration
+INT1_CTRL ::= 0x0D
+INT2_CTRL ::= 0x0E
 
 
 class LSM6DS3:
@@ -170,8 +210,7 @@ class LSM6DS3:
     if enable_free_fall:
       reg_.write_u8 TAP_CFG 0x80
       
-    // Route free-fall interrupt to INT1
-    reg_.write_u8 MD1_CFG 0x10
+
 
     range_acc_ = range_acc
     range_gyro_ = range_gyro
@@ -320,3 +359,82 @@ class LSM6DS3:
     return ((reg_.read_u8 WAKE_UP_SRC) & 0x20) == 0x20
 
 
+  
+  // FIFO Section
+
+
+  /**
+  - Configures the FIFO.
+  - fifo is disabled at default decimation values (0)
+  - fifo is disabled at default ODR (0)
+  - Decimation bitmapping:
+    factor 2 :  010  (value 2 decimal)
+    factor 3 :  011  (value 3 decimal)
+    factor 4 :  100  (value 4 decimal)
+    factor 8 :  101  (value 5 decimal)
+    factor 16 : 110 (value 6 decimal)
+    factor 32 : 111 (value 7 decimal)
+  */
+  fifoBegin -> none
+      --gyroFifoDecimation/int=0
+      --accelFifoDecimation/int=0
+      --threshold/int=0
+      --mode/int=FIFO_MODE_BYPASS
+      --fifoDataRate/int=0:
+    //throw "INVALID_FIFO_DATA_RATE" if fifoDataRate not in [0,1,2,3,4,5,6,7,8,9,10]
+    reg_.write_u8 FIFO_CTRL1 (threshold & 0xFF)
+    reg_.write_u8 FIFO_CTRL2 ((threshold >> 8) & 0x0F)
+    reg_.write_u8 FIFO_CTRL3 (((gyroFifoDecimation&0x07) << 3) | (accelFifoDecimation&0x07))
+    reg_.write_u8 FIFO_CTRL4 0x00
+    reg_.write_u8 FIFO_CTRL5 (((fifoDataRate & 0x0F) << 3) | (mode & 0x07)) 
+
+  fifoSampleRead -> int:
+    return reg_.read_i16_le FIFO_DATA_OUT_L
+  
+  /**
+  Returns the number of unread samples in the FIFO.
+  */
+  get_fifo_sample_count -> int:
+    low := reg_.read_u8 FIFO_STATUS1
+    high := reg_.read_u8 FIFO_STATUS2 & 0x07
+    return ((high << 8) | low)
+  
+  /**
+  Returns 1 if FIFO filling is equal to or higher than the watermark level.
+  */
+  fifo_watermark_reached -> bool:
+    return (((reg_.read_u8 FIFO_STATUS2) & 0x80) != 0)
+
+  /**
+  Returns 1 if FIFO is full.
+  */
+  fifo_full -> bool:
+    return (((reg_.read_u8 FIFO_STATUS2) & 0x40) != 0)
+  
+  
+
+  int1_config -> none
+      --sigMotion/bool=false
+      --freeFall/bool=false
+      --fifo_thresholdReached/bool=false
+      --fifo_full/bool=false: 
+    int1_ctrl := 0x00
+    int1_ctrl |= (sigMotion << 1)
+    int1_ctrl |= (fifo_full << 3)
+    int1_ctrl |= (fifo_thresholdReached << 4)
+
+    reg_.write_u8 INT1_CTRL (int1_ctrl)
+    reg_.write_u8 MD1_CFG (freeFall << 4)
+
+  int2_config -> none
+      --sigMotion/bool=false
+      --freeFall/bool=false
+      --fifo_thresholdReached/bool=false
+      --fifo_full/bool=false: 
+    int2_ctrl := 0x00
+    int2_ctrl |= (sigMotion << 1)
+    int2_ctrl |= (fifo_full << 3)
+    int2_ctrl |= (fifo_thresholdReached << 4)
+
+    reg_.write_u8 INT2_CTRL (int2_ctrl)
+    reg_.write_u8 MD2_CFG (freeFall << 4)
